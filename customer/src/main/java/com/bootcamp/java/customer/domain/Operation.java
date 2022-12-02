@@ -13,7 +13,7 @@ import java.time.LocalDate;
 @EqualsAndHashCode(of = {"accountNumber"})
 @AllArgsConstructor
 @NoArgsConstructor
-@Document(value = "product")
+@Document(value = "operation")
 public class Operation {
     @Id
     private String id;

@@ -6,6 +6,7 @@ import com.bootcamp.java.customer.repository.CustomerRepository;
 import com.bootcamp.java.customer.repository.ProductRepository;
 import com.bootcamp.java.customer.web.dto.CustomerTypeEnum;
 import com.bootcamp.java.customer.web.dto.ProductTypeEnum;
+import com.bootcamp.java.customer.web.exceptions.CustomerException;
 import com.bootcamp.java.customer.web.mapper.IProductMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +15,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+
+import java.util.List;
 
 @Slf4j
 @Service
@@ -30,49 +33,41 @@ public class ProductService {
     @Autowired
     private IProductMapper productMapper;
 
-    public Flux<Product> findAll(){
+    public Flux<Product> findAll() {
         log.debug("findAll executed");
         return productRepository.findAll();
     }
 
-    public Mono<Product> findById(String productId){
+    public Mono<Product> findById(String productId) {
         log.debug("findById executed {}", productId);
         return productRepository.findById(productId);
     }
 
-    public Mono<Product> create(Product product){
+    public Mono<Product> create(Product product) {
         log.debug("create executed {}", product);
+        log.debug(">>>>>>>>>>>>>>>>>>>>>>>>"+customerRepository.findByIdentityNumber(product.getIdentityNumberCustomer()).single());
+        return customerRepository.findByIdentityNumber(product.getIdentityNumberCustomer())
+                .single()
+                .switchIfEmpty(Mono.error(new CustomerException("Customer not exist")))
+                .then(
+                        customerRepository.findByIdentityNumber(product.getIdentityNumberCustomer())
+                                .filter(z -> z.getType().equals(CustomerTypeEnum.PERSONNEL.getValue()))
+                                .single()
+                                .switchIfEmpty(Mono.error(new CustomerException("Customer not personnel")))
+                                .then(
+                                        productRepository.findByIdentityNumberCustomer(product.getIdentityNumberCustomer())
+                                                .filter(y ->
+                                                        y.getProductType().equals(ProductTypeEnum.CURRENT_ACCOUNT.getValue()) ||
+                                                                y.getProductType().equals(ProductTypeEnum.SAVING_ACCOUNT.getValue()) ||
+                                                                y.getProductType().equals(ProductTypeEnum.FIXED_TERM_ACCOUNT.getValue()))
 
-        if(product.getProductType().trim().equals(ProductTypeEnum.SAVING_ACCOUNT.getValue()) ||
-                product.getProductType().trim().equals(ProductTypeEnum.CURRENT_ACCOUNT.getValue()) ||
-                product.getProductType().trim().equals(ProductTypeEnum.FIXED_TERM_ACCOUNT.getValue())){
-            /*if(customer.get){
+                                                .switchIfEmpty(productRepository.save(product))
+                                                .then(Mono.error(new CustomerException("Customer not exist 2")))
+                                )
 
-            }*/
-            Flux<Customer> customerFlux = customerRepository.findByIdentityNumber(product.getIdentityNumberCustomer())
-                    .filter(dbCustomer -> dbCustomer.getType().equals(CustomerTypeEnum.PERSONNEL.getValue()))
-                    .switchIfEmpty(b -> {
-                    });
+                );
 
 
-            Flux<Product> productFlux = productRepository.findByIdentityNumberCustomer(product.getIdentityNumberCustomer())
-                    .filter(dbProduct -> dbProduct.getProductType().equals(ProductTypeEnum.SAVING_ACCOUNT.getValue()) ||
-                            dbProduct.getProductType().equals(ProductTypeEnum.CURRENT_ACCOUNT.getValue()) ||
-                            dbProduct.getProductType().equals(ProductTypeEnum.FIXED_TERM_ACCOUNT.getValue()))
-                    .switchIfEmpty(p -> {
-                        productRepository.save(product);
-                    });
-
-
-        }
-        /*if (product.getType().trim().equals(ProductTypeEnum.BUSINESS.getValue()) ||
-                product.getType().trim().equals(ProductTypeEnum.PERSONNEL.getValue())) {*/
-        return productRepository.save(product);
-        /*}
-        else {
-            return Mono.error(new InvalidProductTypeException());
-
-        }*/
     }
 
     public Mono<Product> update(String productId, Product product){
